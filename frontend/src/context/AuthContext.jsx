@@ -8,12 +8,18 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Check for saved session on mount
     const storedUser = localStorage.getItem('hms_user');
     const token = localStorage.getItem('hms_token');
     
     if (storedUser && token) {
-      setUser(JSON.parse(storedUser));
-      setAuthToken(token);
+      try {
+        setUser(JSON.parse(storedUser));
+        setAuthToken(token); // Configure axios with the token
+      } catch (e) {
+        console.error("Failed to parse user data", e);
+        logout();
+      }
     }
     setLoading(false);
   }, []);
