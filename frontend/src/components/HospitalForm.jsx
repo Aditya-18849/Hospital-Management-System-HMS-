@@ -164,7 +164,7 @@ export default function HospitalForm() {
                 fullWidth 
                 value={form.phone} 
                 onChange={handleChange}
-                placeholder="+1 234 567 8900"
+                placeholder="+91 9876543210"
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">

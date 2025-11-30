@@ -23,23 +23,24 @@ export default function Dashboard() {
       role: ['DOCTOR', 'NURSE', 'RECEPTIONIST', 'HOSPITAL_ADMIN'], 
       link: '/patients', 
       icon: <People fontSize="large" />, 
-      color: theme.palette.info.main, // Blue
+      color: theme.palette.info.main,
       description: 'Register new patients, view history, and manage admissions.'
     },
     { 
       title: 'Appointments', 
-      role: ['RECEPTIONIST', 'HOSPITAL_ADMIN'], 
+      role: ['RECEPTIONIST', 'HOSPITAL_ADMIN', 'DOCTOR', 'NURSE'], 
       link: '/appointments', 
       icon: <EventNote fontSize="large" />, 
-      color: theme.palette.secondary.main, // Purple
+      color: theme.palette.secondary.main,
       description: 'Schedule consultations and manage doctor availability.'
     },
     { 
       title: 'Prescriptions', 
-      role: ['DOCTOR', 'PHARMACIST'], 
+      // FIXED: Added HOSPITAL_ADMIN to role array so you can see it
+      role: ['DOCTOR', 'PHARMACIST', 'HOSPITAL_ADMIN'], 
       link: '/prescriptions', 
       icon: <LocalPharmacy fontSize="large" />, 
-      color: theme.palette.success.main, // Green
+      color: theme.palette.success.main,
       description: 'Issue medications and track pharmacy inventory.'
     },
     { 
@@ -47,20 +48,18 @@ export default function Dashboard() {
       role: ['HOSPITAL_ADMIN'], 
       link: '/users', 
       icon: <AdminPanelSettings fontSize="large" />, 
-      color: theme.palette.warning.main, // Orange
+      color: theme.palette.warning.main,
       description: 'Manage hospital staff accounts, roles, and access permissions.'
     },
   ]
 
-  // Safe checks for user data
   const userName = user?.name || 'User'
   const userRole = user?.role || 'Guest'
   const hospitalName = user?.hospitalName || 'Hospital'
 
   return (
     <Container maxWidth="lg" sx={{ mt: 2, mb: 4 }}>
-      
-      {/* --- Welcome Banner --- */}
+      {/* Welcome Banner */}
       <Paper 
         elevation={0} 
         sx={{ 
@@ -115,7 +114,7 @@ export default function Dashboard() {
         </Avatar>
       </Paper>
 
-      {/* --- Quick Access Grid --- */}
+      {/* Quick Access Grid */}
       <Typography variant="h5" fontWeight="bold" sx={{ mb: 3, color: 'text.primary' }}>
         Overview
       </Typography>
@@ -147,7 +146,6 @@ export default function Dashboard() {
                     justifyContent: 'space-between' 
                   }}
                 >
-                  {/* Icon Box */}
                   <Box 
                     sx={{ 
                       p: 1.5, 
@@ -163,7 +161,6 @@ export default function Dashboard() {
                     {item.icon}
                   </Box>
 
-                  {/* Content */}
                   <CardContent sx={{ p: 0, width: '100%', flexGrow: 1 }}>
                     <Typography variant="h6" fontWeight="bold" gutterBottom>
                       {item.title}
@@ -173,7 +170,6 @@ export default function Dashboard() {
                     </Typography>
                   </CardContent>
 
-                  {/* Arrow Indicator */}
                   <Box sx={{ width: '100%', display: 'flex', justifyContent: 'flex-end', mt: 'auto' }}>
                     <ArrowForward fontSize="small" sx={{ color: 'text.disabled' }} />
                   </Box>

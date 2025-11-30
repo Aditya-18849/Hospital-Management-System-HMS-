@@ -9,6 +9,9 @@ import HospitalActivation from './pages/HospitalActivation'
 import Dashboard from './pages/Dashboard'
 import Login from './pages/Login'
 import Patients from './pages/Patients'
+import Appointments from './pages/Appointments' // Import Appointments
+import Users from './pages/Users'               // Import Users
+import Prescriptions from './pages/Prescriptions' // Import Prescriptions
 import NotFound from './pages/NotFound'
 
 // Components
@@ -17,7 +20,6 @@ import Layout from './components/Layout'
 /**
  * ScrollToTop Component
  * Ensures the page scrolls to the top whenever the route changes.
- * Essential for good UX in SPAs.
  */
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -30,7 +32,6 @@ const ScrollToTop = () => {
 /**
  * PrivateRoute Component
  * Guards routes that require authentication.
- * Redirects unauthenticated users to the Login page.
  */
 const PrivateRoute = ({ children }) => {
   const { user } = useAuth();
@@ -39,27 +40,24 @@ const PrivateRoute = ({ children }) => {
 
 /**
  * PublicRoute Component
- * Guards routes that are only for unauthenticated users (like Login/Register).
- * Redirects authenticated users to the Dashboard.
+ * Guards routes that are only for unauthenticated users.
  */
 const PublicRoute = ({ children }) => {
   const { user } = useAuth();
-  return !user ? children : <Navigate to="/dashboard" replace />;
+  return user ? <Navigate to="/dashboard" replace /> : children;
 };
 
 export default function App() {
   return (
     <AuthProvider>
-      {/* UX Enhancer: Scroll to top on navigation */}
       <ScrollToTop />
-      
       <Layout>
         <Routes>
-          {/* --- Public Access Routes --- */}
+          {/* Public Routes */}
           <Route path="/" element={<Home />} />
           <Route path="/activate/:token" element={<HospitalActivation />} />
           
-          {/* --- Guest Only Routes (Redirects to Dashboard if logged in) --- */}
+          {/* Guest Only Routes */}
           <Route 
             path="/register" 
             element={
@@ -77,7 +75,7 @@ export default function App() {
             } 
           />
           
-          {/* --- Protected Routes (Requires Login) --- */}
+          {/* Protected Routes */}
           <Route 
             path="/dashboard" 
             element={
@@ -94,8 +92,33 @@ export default function App() {
               </PrivateRoute>
             } 
           />
+          {/* --- NEW ROUTES ADDED HERE --- */}
+          <Route 
+            path="/appointments" 
+            element={
+              <PrivateRoute>
+                <Appointments />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/users" 
+            element={
+              <PrivateRoute>
+                <Users />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/prescriptions" 
+            element={
+              <PrivateRoute>
+                <Prescriptions />
+              </PrivateRoute>
+            } 
+          />
 
-          {/* --- Catch-all 404 Route --- */}
+          {/* 404 Catch-all */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Layout>
