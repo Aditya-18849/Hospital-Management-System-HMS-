@@ -1,113 +1,143 @@
-import express from 'express'
-import cors from 'cors'
-import dotenv from 'dotenv'
-import fs from 'fs/promises'
-import path from 'path'
-import bcrypt from 'bcryptjs'
-import jwt from 'jsonwebtoken'
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import connectDB from './config/db.js';
+import { protect, authorize } from './middleware/authMiddleware.js';
+import Hospital from './models/Hospital.js';
+import User from './models/User.js';
+import Patient from './models/Patient.js';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 
-dotenv.config()
+dotenv.config();
+connectDB(); // Connect to MongoDB
 
-const PORT = process.env.PORT || 4000
-const JWT_SECRET = process.env.JWT_SECRET || 'change_this_jwt_secret'
-const DATA_FILE = process.env.DATA_FILE || './src/data.json'
+const app = express();
+app.use(cors());
+app.use(express.json());
 
-const app = express()
-app.use(cors({ origin: 'http://localhost:5173' }))
-app.use(express.json())
+// --- HELPER FUNCTIONS ---
+const generateToken = (id, hospitalId, role) => {
+  return jwt.sign({ id, hospitalId, role }, process.env.JWT_SECRET, { expiresIn: '12h' });
+};
 
-const readData = async () => {
-  const raw = await fs.readFile(path.resolve(DATA_FILE), 'utf8')
-  return JSON.parse(raw)
-}
+// --- ROUTES ---
 
-const writeData = async (data) => {
-  await fs.writeFile(path.resolve(DATA_FILE), JSON.stringify(data, null, 2), 'utf8')
-}
-
-// Helpers
-const findHospitalByEmail = (hospitals, email) => hospitals.find(h => h.email.toLowerCase() === email.toLowerCase())
-
-// POST /api/hospitals/register
+// 1. HOSPITAL REGISTRATION (FR-1)
 app.post('/api/hospitals/register', async (req, res) => {
-  const { name, email, phone, address, password } = req.body
-  if (!name || !email) return res.status(400).json({ message: 'Name and email are required' })
+  const { name, email, phone, address, licenseNumber, password } = req.body;
 
-  const data = await readData()
-  const hospitals = data.hospitals || []
-  if (findHospitalByEmail(hospitals, email)) return res.status(400).json({ message: 'Hospital with that email already exists' })
-
-  const hashed = password ? await bcrypt.hash(password, 10) : null
-  const activationToken = cryptoRandom()
-  const id = Date.now().toString()
-  const hospital = { id, name, email, phone: phone || '', address: address || '', password: hashed, isActive: false, activationToken, createdAt: new Date().toISOString() }
-
-  hospitals.push(hospital)
-  data.hospitals = hospitals
-  await writeData(data)
-
-  // In a real app you would email the activation link. For now return it in the response for testing.
-  const activationLink = `${req.protocol}://${req.get('host')}/api/hospitals/activate/${activationToken}`
-  return res.status(201).json({ message: 'Hospital registered. Use activation link to activate account.', activationLink })
-})
-
-// GET /api/hospitals/activate/:token
-app.get('/api/hospitals/activate/:token', async (req, res) => {
-  const { token } = req.params
-  const data = await readData()
-  const hospitals = data.hospitals || []
-  const idx = hospitals.findIndex(h => h.activationToken === token)
-  if (idx === -1) return res.status(400).json({ message: 'Invalid or expired activation token' })
-  hospitals[idx].isActive = true
-  delete hospitals[idx].activationToken
-  await writeData(data)
-  return res.json({ message: 'Hospital activated successfully' })
-})
-
-// POST /api/auth/login
-app.post('/api/auth/login', async (req, res) => {
-  const { email, password } = req.body
-  if (!email || !password) return res.status(400).json({ message: 'Email and password are required' })
-  const data = await readData()
-  const hospitals = data.hospitals || []
-  const hospital = findHospitalByEmail(hospitals, email)
-  if (!hospital) return res.status(400).json({ message: 'Invalid credentials' })
-  if (!hospital.isActive) return res.status(403).json({ message: 'Hospital account not activated' })
-  const ok = hospital.password ? await bcrypt.compare(password, hospital.password) : false
-  if (!ok) return res.status(400).json({ message: 'Invalid credentials' })
-  const token = jwt.sign({ id: hospital.id, email: hospital.email }, JWT_SECRET, { expiresIn: '8h' })
-  return res.json({ token })
-})
-
-// Protected example route
-app.get('/api/hospitals/me', async (req, res) => {
-  const auth = req.headers.authorization
-  if (!auth) return res.status(401).json({ message: 'Missing authorization' })
-  const parts = auth.split(' ')
-  if (parts.length !== 2 || parts[0] !== 'Bearer') return res.status(401).json({ message: 'Invalid authorization format' })
-  const token = parts[1]
   try {
-    const payload = jwt.verify(token, JWT_SECRET)
-    const data = await readData()
-    const hospital = (data.hospitals || []).find(h => h.id === payload.id)
-    if (!hospital) return res.status(404).json({ message: 'Hospital not found' })
-    const { password, ...safe } = hospital
-    return res.json(safe)
+    const hospitalExists = await Hospital.findOne({ email });
+    if (hospitalExists) return res.status(400).json({ message: 'Hospital already exists' });
+
+    // Generate Tenant ID and Token
+    const tenantId = crypto.randomUUID();
+    const activationToken = crypto.randomBytes(20).toString('hex');
+
+    const hospital = await Hospital.create({
+      name, email, phone, address, licenseNumber, activationToken, tenantId
+    });
+
+    // Create the initial ADMIN User
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    await User.create({
+      hospital: hospital._id,
+      firstName: 'Admin',
+      lastName: 'User',
+      email: email, // Admin email same as hospital email initially
+      password: hashedPassword,
+      role: 'HOSPITAL_ADMIN'
+    });
+
+    // Return link (In production, email this)
+    const activationLink = `http://localhost:5173/activate/${activationToken}`;
+    res.status(201).json({ message: 'Registered. Please check email to activate.', activationLink });
+
   } catch (err) {
-    return res.status(401).json({ message: 'Invalid token' })
+    res.status(500).json({ message: err.message });
   }
-})
+});
 
-app.listen(PORT, () => {
-  console.log(`HMS backend listening on http://localhost:${PORT}`)
-})
-
-// Simple small helpers
-function cryptoRandom() {
-  // prefer crypto.randomUUID when available
+// 2. ACTIVATION
+app.post('/api/hospitals/activate/:token', async (req, res) => {
   try {
-    return (globalThis.crypto && globalThis.crypto.randomUUID) ? globalThis.crypto.randomUUID() : require('crypto').randomBytes(16).toString('hex')
-  } catch (e) {
-    return require('crypto').randomBytes(16).toString('hex')
+    const hospital = await Hospital.findOne({ activationToken: req.params.token });
+    if (!hospital) return res.status(400).json({ message: 'Invalid token' });
+
+    hospital.isActive = true;
+    hospital.activationToken = undefined;
+    await hospital.save();
+
+    res.json({ message: 'Account Activated' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server Error' });
   }
-}
+});
+
+// 3. LOGIN (FR-3)
+app.post('/api/auth/login', async (req, res) => {
+  const { email, password } = req.body;
+  try {
+    const user = await User.findOne({ email }).populate('hospital');
+    if (!user) return res.status(401).json({ message: 'Invalid credentials' });
+
+    if (!user.hospital.isActive) return res.status(403).json({ message: 'Hospital is not active' });
+
+    if (await bcrypt.compare(password, user.password)) {
+      res.json({
+        _id: user._id,
+        name: `${user.firstName} ${user.lastName}`,
+        email: user.email,
+        role: user.role,
+        token: generateToken(user._id, user.hospital._id, user.role),
+        hospitalName: user.hospital.name
+      });
+    } else {
+      res.status(401).json({ message: 'Invalid credentials' });
+    }
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// 4. PATIENT MANAGEMENT (FR-8, FR-9)
+// Protected Route - Accessible by Doctors, Nurses, Admins
+app.post('/api/patients', protect, authorize('DOCTOR', 'NURSE', 'HOSPITAL_ADMIN', 'RECEPTIONIST'), async (req, res) => {
+  const { name, dob, gender, type, contactNumber } = req.body;
+  
+  try {
+    // Generate Sequential Patient ID: tenantId-P-Sequence
+    // Note: In high concurrency, use a counter collection. simpler countDocuments here for hackathon.
+    const count = await Patient.countDocuments({ hospital: req.user.hospital });
+    const hospital = await Hospital.findById(req.user.hospital);
+    
+    const patientId = `${hospital.tenantId}-P-${count + 1}`;
+
+    const patient = await Patient.create({
+      hospital: req.user.hospital,
+      patientId,
+      name, dob,QX: gender, type, contactNumber
+    });
+    
+    res.status(201).json(patient);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+app.get('/api/patients', protect, async (req, res) => {
+  // Tenant Isolation: Only fetch patients for THIS user's hospital
+  try {
+    const patients = await Patient.find({ hospital: req.user.hospital });
+    res.json(patients);
+  } catch (err) {
+    res.status(500).json({ message: 'Error fetching patients' });
+  }
+});
+
+const PORT = process.env.PORT || 4000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
