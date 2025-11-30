@@ -1,0 +1,22 @@
+
+.root {
+}
+
+:root {
+  --app-max-width: 1100px;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  font-family: 'Roboto', sans-serif;
+}
+
+.container {
+  max-width: var(--app-max-width);
+  margin: 24px auto;
+  padding: 0 16px;
+}
+
